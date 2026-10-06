@@ -42,7 +42,7 @@ export default function Home() {
       if (mfaData && mfaData.nextLevel == 'aal2'){
         setSuccesMessage("Credenciales correctas. Solicitando segundo factor...");
         setTimeout(() => {
-          router.push("/mfa-verify"):
+          router.push("/mfa-verify");
         }, 1000);
       } else {
         setSuccesMessage("¡Inicio de sesión exitoso! Redirigiendo...");
