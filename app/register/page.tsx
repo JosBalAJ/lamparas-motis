@@ -3,36 +3,92 @@
 import Link from "next/link";
 import AuthLayout from "@/components/AuthLayout";
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function Register() {
     // Estados Visibilidad de Contraseñas
     const [showPassword, setPasswordVisibility] = useState(false);
     const [showConfirmPass, setConfirmPassVisibility] = useState(false);
 
-    //Estados Confirmación de Contraseñas
+    //Estados de Valores
+    const [nameValue, setNameValue] = useState("");
+    const [emailValue, setEmailValue] = useState("");
     const [passwordValue, setPasswordValue] = useState("");
     const [confirmPassValue, setConfirmPassValue] = useState("");
-    const [errorMessage, setErrorMessage] = useState("");
 
-    const handleRegisterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    //Estados de Interfaz
+    const [errorPassMessage, setPassErrorMessage] = useState("");
+    const [errorMessage, setErrorMessage] = useState("");
+    const [successMessage, setSuccesMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleRegisterSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        setPassErrorMessage("");
         setErrorMessage("");
-        if(passwordValue !== confirmPassValue) {
-            setErrorMessage("Las contraseñas no coinciden. Por favor, verifícalas.");
+        setSuccesMessage("");
+
+        if (passwordValue !== confirmPassValue) {
+            setPassErrorMessage("Las contraseñas no coinciden. Por favor, verifícalas.");
             return;
         }
-        if(passwordValue.length < 8) {
-            setErrorMessage("La contraseña debe tener al menos 8 caracteres.");
+        if (passwordValue.length < 8) {
+            setPassErrorMessage("La contraseña debe tener al menos 8 caracteres.");
+            return;
         } else if (!/[A-Z]/.test(passwordValue)) {
-            setErrorMessage("La contraseña debe incluir al menos una letra mayúscula.")
+            setPassErrorMessage("La contraseña debe incluir al menos una letra mayúscula.")
+            return;
         } else if (!/[a-z]/.test(passwordValue)) {
-            setErrorMessage("La contraseña debe incluir al menos una letra minúscula.")
+            setPassErrorMessage("La contraseña debe incluir al menos una letra minúscula.")
+            return;
         } else if (!/[0-9]/.test(passwordValue)) {
-            setErrorMessage("La contraseña debe inlcuir al menos un número.")
+            setPassErrorMessage("La contraseña debe inlcuir al menos un número.")
+            return;
         } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(passwordValue)) {
-            setErrorMessage("La contraseña debe incluir al menos un caracter especial.")
+            setPassErrorMessage("La contraseña debe incluir al menos un caracter especial.")
+            return;
         }
-    }
+        setIsLoading(true);
+
+        try {
+            const domainResponse = await fetch('/api/validate-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailValue })
+            });
+            const domainData = await domainResponse.json();
+
+            if (!domainData.valid) {
+                setErrorMessage(`Error de correo: ${domainData.message}. Usa un dominio válido.`);
+                setIsLoading(false);
+                return;
+            }
+
+            const { data, error } = await supabase.auth.signUp({
+                email: emailValue,
+                password: passwordValue,
+                options: {
+                    data: {
+                        full_name: nameValue,
+                    }
+                }
+            });
+
+            if (error) {
+                setErrorMessage(error.message);
+            } else {
+                setSuccesMessage("¡Cuenta creada con éxito!");
+                setNameValue("");
+                setEmailValue("");
+                setPasswordValue("");
+                setConfirmPassValue("");
+            }
+        } catch (error) {
+            setErrorMessage("Ocurrió un error inesperado al conectar con el servidor.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <AuthLayout imageBg="/img/lamps/colibri-mariposa-ia.png">
@@ -48,23 +104,33 @@ export default function Register() {
                 <h1 className="text-3xl md:text-4xl text-amber-950 font-(family-name:--font-merriweather) leading-tight">Únete a Motis</h1>
                 <span className="text-amber-950/70 mt-1">Crea tu cuenta para obtener tu lámpara ideal.</span>
 
+                {errorPassMessage && (
+                    <div className="w-full bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mt-4" role="alert">
+                        <span className="block sm:inline">{errorPassMessage}</span>
+                    </div>
+                )}
                 {errorMessage && (
                     <div className="w-full bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mt-4" role="alert">
                         <span className="block sm:inline">{errorMessage}</span>
                     </div>
                 )}
+                {successMessage && (
+                    <div className="w-full bg-green-100 border border-green-400 text-gray-700 px-4 py-3 rounded-lg relative mt-4 text-sm" role="alert">
+                        <span className="block sm:inline">{successMessage}</span>
+                    </div>
+                )}
 
                 <form className="flex flex-col w-full" onSubmit={handleRegisterSubmit}>
                     <label htmlFor="name" className="text-amber-950/90 font-bold mt-2 md:mt-3">Nombre completo</label>
-                    <input type="text" name="name" id="name" placeholder="Tu nombre" required
+                    <input type="text" name="name" id="name" placeholder="Tu nombre" required value={nameValue} onChange={(e) => setNameValue(e.target.value)}
                         className="border border-stone-300 bg-stone-50 h-10 p-2.5 mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:border-orange-600 focus:shadow-md focus:shadow-orange-500/30" />
                     <label htmlFor="email" className="text-amber-950/90 font-bold mt-2 md:mt-3">Correo electrónico</label>
-                    <input type="email" name="" id="email" placeholder="nombre@ejemplo.com"
+                    <input type="email" name="email" id="email" placeholder="nombre@ejemplo.com" required value={emailValue} onChange={(e) => setEmailValue(e.target.value)}
                         className="border border-stone-300 bg-stone-50 h-10 p-2.5 mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:border-orange-600 focus:shadow-md focus:shadow-orange-500/30" />
                     <label htmlFor="password" className="text-amber-950/90 font-bold mt-2 md:mt-3">Contraseña</label>
                     <div className="relative mt-1 w-full">
                         <input type={showPassword ? "text" : "password"} name="password" id="password" placeholder="Crea una contraseña segura" required value={passwordValue} onChange={(e) => setPasswordValue(e.target.value)}
-                            className={`border bg-stone-50 h-10 p-2.5 pr-10 w-full mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:shadow-md focus:shadow-orange-500/30 ${errorMessage ? 'border-red-500 focus:border-red-500' : 'border-stone-300 focus:border-orange-600'}`}/>
+                            className={`border bg-stone-50 h-10 p-2.5 pr-10 w-full mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:shadow-md focus:shadow-orange-500/30 ${errorPassMessage ? 'border-red-500 focus:border-red-500' : 'border-stone-300 focus:border-orange-600'}`} />
                         <button type="button" onClick={() => setPasswordVisibility(!showPassword)}
                             className="absolute right-3 top-6/11 -translate-y-1/2 text-amber-950/50 hover:text-amber-900 transition-colors focus:outline-none">
                             {showPassword ? (
@@ -82,7 +148,7 @@ export default function Register() {
                     <label htmlFor="confirm" className="text-amber-950/90 font-bold mt-2 md:mt-3">Confirmar contraseña</label>
                     <div className="relative mt-1 w-full">
                         <input type={showConfirmPass ? "text" : "password"} name="confirm" id="confirm" placeholder="Escribe de nuevo tu contraseña" required value={confirmPassValue} onChange={(e) => setConfirmPassValue(e.target.value)}
-                            className={`border bg-stone-50 h-10 p-2.5 pr-10 w-full mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:shadow-md focus:shadow-orange-500/30 ${errorMessage ? 'border-red-500 focus:border-red-500' : 'border-stone-300 focus:border-orange-600'}`} />
+                            className={`border bg-stone-50 h-10 p-2.5 pr-10 w-full mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:shadow-md focus:shadow-orange-500/30 ${errorPassMessage ? 'border-red-500 focus:border-red-500' : 'border-stone-300 focus:border-orange-600'}`} />
                         <button type="button" onClick={() => setConfirmPassVisibility(!showConfirmPass)}
                             className="absolute right-3 top-6/11 -translate-y-1/2 text-amber-950/50 hover:text-amber-900 transition-colors focus:outline-none">
                             {showConfirmPass ? (
@@ -97,8 +163,8 @@ export default function Register() {
                             )}
                         </button>
                     </div>
-                    <input type="submit" value="Crear Cuenta"
-                        className="bg-amber-900 text-white cursor-pointer rounded-lg h-10 font-bold transition-all duration-200 hover:bg-amber-950 hover:-translate-y-1 hover:shadow-lg mt-6" />
+                    <input type="submit" value={isLoading ? "Creando cuenta..." : "Crear cuenta"} disabled={isLoading}
+                        className={`text-white rounded-lg h-10 font-bold transition-all duration-200 mt-6 ${isLoading ? 'bg-amber-900/50 cursor-not-allowed' : 'bg-amber-900 cursor-pointer hover:bg-amber-950 hover:-translate-y-1 hover:shadow-lg'}`} />
                 </form>
                 <div className="flex w-full flex-row justify-between items-center text-stone-400 text-xs mt-6">
                     <span className="h-0.5 w-1/4 md:w-25 bg-orange-600/20"></span>

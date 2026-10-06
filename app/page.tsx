@@ -1,11 +1,62 @@
 "use client";
 
 import Link from "next/link"
+import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/AuthLayout";
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function Home() {
+  const router = useRouter();
+
   const [showPassword, setPassword] = useState(false);
+
+  //Estados para captura de datos
+  const [emailValue, setEmailValue] = useState("");
+  const [passwordValue, setPasswordValue] = useState("");
+
+  //Estados para la interfaz
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccesMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLoginSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setSuccesMessage("");
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailValue,
+        password: passwordValue,
+      });
+      if (error) {
+        setErrorMessage("Correo electrónico o contraseña incorrectos.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: mfaData, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+      if (mfaData && mfaData.nextLevel == 'aal2'){
+        setSuccesMessage("Credenciales correctas. Solicitando segundo factor...");
+        setTimeout(() => {
+          router.push("/mfa-verify"):
+        }, 1000);
+      } else {
+        setSuccesMessage("¡Inicio de sesión exitoso! Redirigiendo...");
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 1000);
+      }
+    } catch (error) {
+      setErrorMessage("Ocurrió un error inesperado al conectar con el servidor.")
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthLayout imageBg="img/lamps/reno-ia2.png">
 
@@ -19,13 +70,25 @@ export default function Home() {
       <div className="md:row-start-2 md:row-end-7 flex flex-col justify-center items-start w-5/6 md:w-4/5 mx-auto">
         <h1 className="text-3xl md:text-4xl text-amber-950 font-(family-name:--font-merriweather) leading-tight">Bienvenido de vuelta</h1>
         <span className="text-amber-950/70 mt-1">Accede a tu cuenta y explora piezas hechas para iluminar momentos</span>
-        <form className="flex flex-col w-full" onSubmit={(e) => e.preventDefault()}>
+
+        {errorMessage && (
+          <div className="w-full bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mt-4 text-sm" role="alert">
+            <span className="block sm:inline">{errorMessage}</span>
+          </div>
+        )}
+        {successMessage && (
+          <div className="w-full bg-green-100 border border-gray-400 text-green-700 px-4 py-3 rounded-lg relative mt-4 text-sm" role="alert">
+            <span className="block sm:inline">{successMessage}</span>
+          </div>
+        )}
+
+        <form className="flex flex-col w-full" onSubmit={handleLoginSubmit}>
           <label htmlFor="email" className="text-amber-950/90 font-bold mt-2 md:mt-5">Correo electrónico</label>
-          <input type="email" name="email" id="email" placeholder="nombre@ejemplo.com" required
+          <input type="email" name="email" id="email" placeholder="nombre@ejemplo.com" required value={emailValue} onChange={(e) => setEmailValue(e.target.value)}
             className="border border-stone-300 bg-stone-50 h-10 p-2.5 mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:border-orange-600 focus:shadow-md focus:shadow-orange-500/30" />
           <label htmlFor="password" className="text-amber-950/90 font-bold mt-4">Contraseña</label>
           <div className="relative mt-1 w-full">
-            <input type={showPassword ? "text" : "password"} name="password" id="password" placeholder="Tu contraseña" required
+            <input type={showPassword ? "text" : "password"} name="password" id="password" placeholder="Tu contraseña" required value={passwordValue} onChange={(e) => setPasswordValue(e.target.value)}
               className="border border-stone-300 bg-stone-50 h-10 p-2.5 pr-10 w-full mt-1 rounded-lg transition-all duration-200 placeholder:text-amber-900/50 focus:outline-none focus:border-orange-600 focus:shadow-md focus:shadow-orange-500/30" />
             <button type="button" onClick={() => setPassword(!showPassword)}
               className="absolute right-3 top-6/11 -translate-y-1/2 text-amber-950/50 hover:text-amber-900 transition-colors focus:outline-none">
@@ -50,8 +113,9 @@ export default function Home() {
               <button type="button" className="text-orange-800 cursor-pointer hover:underline">Olvidé mi contraseña</button>
             </Link>
           </div>
-          <input type="submit" value="Iniciar Sesión"
-            className="bg-amber-900 text-white cursor-pointer rounded-lg h-10 font-bold transition-all duration-200 hover:bg-amber-950 hover:-translate-y-1 hover:shadow-lg" />
+          <input type="submit" value={isLoading ? "Iniciando sesión" : "Iniciar sesión"} disabled={isLoading}
+            className={`text-white rounded-lg h-10 font-bold transition-all duration-200 mt-2 
+              ${isLoading ? 'bg-amber-900/50 cursor-not-allowed' : 'bg-amber-900 cursor-pointer hover:bg-amber-950 hover:-translate-y-1 hover:shadow-lg'}`} />
         </form>
 
         <div className="flex w-full flex-row justify-between items-center text-stone-400 text-xs mt-6">
